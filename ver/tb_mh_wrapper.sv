@@ -319,7 +319,7 @@ ahb_timer #(.IFP(`MEMORY_IFP)) m_mtimer
     .s_timeout_o(s_int_mtip)
 );
 
-reri_error_bank #(.N_RECORDS(2),.IFP(`MEMORY_IFP)) m_reri_error_bank
+reri_error_bank #(.N_RECORDS(4),.IFP(`MEMORY_IFP)) m_reri_error_bank
 (
     .clk(r_ver_clk),
     .rst_n(r_ver_rstn),

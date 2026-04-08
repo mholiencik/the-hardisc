@@ -20,7 +20,7 @@ import p_reri::fault_record_t;
 
 module hardisc #(
     parameter PMA_REGIONS = 3,
-    parameter RERI_RECORDS = 2,
+    parameter RERI_RECORDS = 4,
     parameter pma_cfg_t PMA_CFG[PMA_REGIONS-1:0] = PMA_DEFAULT
 )(
     input logic s_clk_i[PROT_3REP],         //clock signal
@@ -67,7 +67,7 @@ module hardisc #(
     output logic s_unrec_err_o[PROT_2REP],  //unrecoverable error
 
     // RERI records
-    output fault_record_t s_reri_o[RERI_RECORDS]
+    output fault_record_t s_reri_o[RERI_RECORDS] // TODO register output to avoid timing issues
 );
 
     logic[4:0] s_stall[PROT_3REP];
@@ -337,7 +337,10 @@ module hardisc #(
         .s_read_data_o(s_read_data),
 
         .s_pc_o(s_pc),
-        .s_mhrdctrl0_o(s_mhrdctrl0)
+        .s_mhrdctrl0_o(s_mhrdctrl0),
+        .s_reri_fetch(s_reri_o[0]),
+        .s_reri_ldst(s_reri_o[1]),
+        .s_reri_pipe(s_reri_o[2])
     );
 
     rf_controller m_rfc
@@ -355,7 +358,8 @@ module hardisc #(
         .s_mhrdctrl0_i(s_mhrdctrl0),
 
         .s_p1_val_o(s_idop_p1),
-        .s_p2_val_o(s_idop_p2)
+        .s_p2_val_o(s_idop_p2),
+        .s_reri_o(s_reri_o[3])
     );
 
 `ifdef PROT_INTF
@@ -367,40 +371,5 @@ module hardisc #(
 `else
     assign s_int_fcer   = 1'b0;
 `endif
-
-    // -------------------------------------------------------
-    // RERI fault record wiring
-    // s_lsu_einfo[0]: [1]=CE (corrected), [0]=any error
-    //   UCE = [0] & ~[1]; error codes per RERI Table 6
-    // -------------------------------------------------------
-`ifdef PROT_INTF
-    assign s_reri_o[0].valid = s_int_fcer;
-    assign s_reri_o[1].valid   = s_lsu_einfo[0][0];
-    assign s_reri_o[1].ce      = s_lsu_einfo[0][1];
-    assign s_reri_o[1].ued     = s_lsu_einfo[0][0] & ~s_lsu_einfo[0][1];
-`else
-    assign s_reri_o[0].valid = 1'b0;
-    assign s_reri_o[1].valid   = 1'b0;
-    assign s_reri_o[1].ce      = 1'b0;
-    assign s_reri_o[1].ued     = 1'b0;
-`endif
-    // Fetch record — always a CE; fixed RERI metadata
-    assign s_reri_o[0].ce   = 1'b1;
-    assign s_reri_o[0].ued  = 1'b0;
-    assign s_reri_o[0].uec  = 1'b0;
-    assign s_reri_o[0].ec   = 8'h11;   // instruction fetch CE
-    assign s_reri_o[0].pri  = 2'b01;   // low priority
-    assign s_reri_o[0].c    = 1'b1;    // containable — core corrected it
-    assign s_reri_o[0].ait  = 4'h1;    // supervisor physical address
-    assign s_reri_o[0].addr = s_pc[0]; // current PC (MA stage)
-    assign s_reri_o[0].tt   = 3'b110;  // implicit read (instruction fetch)
-    // LSU record — static fields
-    assign s_reri_o[1].uec    = 1'b0;
-    assign s_reri_o[1].ec     = (s_lsu_einfo[0][0] & ~s_lsu_einfo[0][1]) ? 8'h22 : 8'h21;
-    assign s_reri_o[1].pri    = (s_lsu_einfo[0][0] & ~s_lsu_einfo[0][1]) ? 2'b10 : 2'b01;
-    assign s_reri_o[1].c      = s_lsu_einfo[0][1]; // CE is containable, UCE is not
-    assign s_reri_o[1].ait    = 4'h1;               // supervisor physical address
-    assign s_reri_o[1].addr   = s_exma_val[0];      // EX→MA effective address
-    assign s_reri_o[1].tt     = 3'b100;             // explicit read (load)
 
 endmodule
